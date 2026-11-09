@@ -1,0 +1,417 @@
+<title>Project Intake Portal</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: top bar with role switcher; pipeline board mirroring the five swimlanes; slide-in detail panel; roadmap table. */
+:root{
+  --bg:#f3f5f7; --surface:#ffffff; --surface-2:#e9edf1; --fg:#1d2730; --muted:#5b6b7a; --line:#d3dbe2;
+  --accent:#3f74a4; --accent-fg:#ffffff; --olive:#8c9a2f; --olive-soft:#eef1d6;
+  --ok:#2e8b57; --warn:#c8821c; --bad:#b4453a; --soft-ok:#dff2e6; --soft-warn:#fbeedb; --soft-bad:#f8e2df;
+  --font:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --radius:6px; --shadow:0 8px 28px rgba(20,34,48,.14);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#141a20; --surface:#1d252d; --surface-2:#273039; --fg:#e7ecf0; --muted:#9aa8b4; --line:#344049;
+  --accent:#6fa3d4; --accent-fg:#0f1620; --olive:#b7c553; --olive-soft:#2d3321;
+  --ok:#5fc48b; --warn:#e2a24a; --bad:#e07b70; --soft-ok:#1e3328; --soft-warn:#3a2d18; --soft-bad:#3c2320;
+  --shadow:0 8px 28px rgba(0,0,0,.5); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141a20; --surface:#1d252d; --surface-2:#273039; --fg:#e7ecf0; --muted:#9aa8b4; --line:#344049;
+  --accent:#6fa3d4; --accent-fg:#0f1620; --olive:#b7c553; --olive-soft:#2d3321;
+  --ok:#5fc48b; --warn:#e2a24a; --bad:#e07b70; --soft-ok:#1e3328; --soft-warn:#3a2d18; --soft-bad:#3c2320;
+  --shadow:0 8px 28px rgba(0,0,0,.5); color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:14px/1.5 var(--font);margin:0;min-height:100%}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--accent)}
+button,input,select,textarea{font:inherit;color:inherit}
+h1,h2,h3{text-wrap:balance;margin:0}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* Top bar */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:var(--accent);color:var(--accent-fg);padding-block:12px;display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center}
+.top h1{font-size:17px;font-weight:600;letter-spacing:.01em}
+.top .sub{font-size:12px;opacity:.85}
+.top nav{display:flex;gap:4px;margin-left:auto;flex-wrap:wrap}
+.top nav a{color:inherit;text-decoration:none;padding:6px 12px;border-radius:var(--radius);opacity:.85;font-weight:500}
+.top nav a.on{background:rgba(255,255,255,.18);opacity:1}
+.role{display:flex;align-items:center;gap:8px;font-size:12px}
+.role select{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.35);color:inherit;border-radius:var(--radius);padding:5px 8px;font-weight:500}
+.role select option{color:#1d2730;background:#fff}
+.lbl{font-size:11px;text-transform:uppercase;letter-spacing:.08em;opacity:.8}
+
+main{padding-block:20px 48px;max-width:1400px;margin:0 auto;display:grid;gap:20px}
+.notice{background:var(--soft-warn);border:1px solid var(--warn);color:var(--fg);padding:10px 14px;border-radius:var(--radius);font-size:13px}
+.notice.ok{background:var(--soft-ok);border-color:var(--ok)}
+
+/* Queue */
+.queue{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px;display:grid;gap:12px}
+.queue header{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;justify-content:space-between}
+.queue h2{font-size:15px;font-weight:600}
+.queue .hint{color:var(--muted);font-size:13px}
+.qlist{display:grid;gap:8px}
+.qitem{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius);background:var(--bg);cursor:pointer;text-align:left;width:100%}
+.qitem:hover,.qitem:focus-visible{border-color:var(--accent);outline:none}
+.qitem .id{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.qitem .t{font-weight:500;min-width:0}
+.qitem .t small{display:block;color:var(--muted);font-weight:400;font-size:12px}
+.empty{color:var(--muted);font-size:13px;padding:8px 0}
+
+/* Board */
+.board-wrap{overflow-x:auto;padding-bottom:6px}
+.board{display:grid;grid-template-columns:repeat(6,minmax(190px,1fr));gap:10px;min-width:1160px}
+.lane{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);display:flex;flex-direction:column;min-height:260px}
+.lane > .lh{padding:10px 12px;border-bottom:1px solid var(--line);display:grid;gap:2px}
+.lane .who{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:600}
+.lane .nm{display:flex;justify-content:space-between;align-items:baseline;font-weight:600;font-size:13px}
+.lane .cnt{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.lane .q{font-size:12px;color:var(--muted)}
+.cards{padding:8px;display:grid;gap:8px;align-content:start}
+.card{border:1px solid var(--line);border-left:4px solid var(--olive);border-radius:var(--radius);padding:8px 10px;background:var(--bg);cursor:pointer;text-align:left;width:100%;display:grid;gap:3px}
+.card:hover,.card:focus-visible{border-color:var(--accent);outline:none}
+.card .id{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.card .t{font-weight:500;font-size:13px;line-height:1.3}
+.card .m{font-size:12px;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap}
+.pill{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:600;border:1px solid transparent}
+.pill.ret{background:var(--soft-warn);color:var(--warn)}
+.pill.sn{background:var(--surface-2);color:var(--muted)}
+.pill.dec{background:var(--soft-bad);color:var(--bad)}
+.pill.ok{background:var(--soft-ok);color:var(--ok)}
+.pill.sc{background:var(--olive-soft);color:var(--fg);font-family:var(--mono)}
+.closed{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:640px){.closed{grid-template-columns:1fr}}
+.closed .lane{min-height:auto}
+
+/* Roadmap */
+.rm{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px;display:grid;gap:12px}
+.rm h2{font-size:15px;font-weight:600}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:760px;font-size:13px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+td.n,th.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+td .rank{font-family:var(--mono);font-weight:600}
+.bar{height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden;min-width:80px}
+.bar i{display:block;height:100%;background:var(--olive)}
+.weights{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted)}
+.weights b{color:var(--fg);font-family:var(--mono)}
+
+/* Form grid */
+.form{display:grid;gap:12px}
+.form label{display:grid;gap:4px;font-size:12px;font-weight:600;color:var(--muted)}
+.form input,.form textarea,.form select{border:1px solid var(--line);background:var(--surface);border-radius:var(--radius);padding:8px 10px;width:100%;font-weight:400;color:var(--fg)}
+.form textarea{min-height:72px;resize:vertical}
+.form input:focus,.form textarea:focus,.form select:focus{outline:2px solid var(--accent);outline-offset:1px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:560px){.row2{grid-template-columns:1fr}}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--surface);padding:8px 14px;border-radius:var(--radius);cursor:pointer;font-weight:500}
+.btn.p{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn.o{background:var(--olive);border-color:var(--olive);color:#fff}
+.btn.d{background:var(--soft-bad);border-color:var(--bad);color:var(--bad)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Detail panel */
+.scrim{position:fixed;inset:0;background:rgba(10,18,26,.45);z-index:20}
+.panel{position:fixed;top:0;right:0;bottom:0;width:min(640px,100%);background:var(--surface);z-index:21;box-shadow:var(--shadow);overflow-y:auto;padding-block:calc(16px + env(safe-area-inset-top,0px)) 32px;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px));display:grid;gap:18px;align-content:start}
+.panel .ph{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.panel .ph h2{font-size:18px;font-weight:600}
+.panel .ph .id{font-family:var(--mono);color:var(--muted);font-size:12px}
+.x{border:0;background:transparent;font-size:22px;line-height:1;cursor:pointer;color:var(--muted);padding:2px 6px}
+.stage{display:inline-flex;align-items:center;gap:8px;font-size:12px;padding:4px 10px;border-radius:999px;background:var(--olive-soft);font-weight:600}
+.stage.c{background:var(--surface-2)}
+.sec{display:grid;gap:8px}
+.sec h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;font-size:13px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;white-space:pre-wrap}
+@media (max-width:480px){.kv{grid-template-columns:1fr}}
+.act{border:1px solid var(--accent);border-radius:var(--radius);padding:14px;display:grid;gap:12px;background:var(--bg)}
+.act h3{color:var(--accent)}
+.hist{display:grid;gap:6px;font-size:12px}
+.hist div{display:grid;grid-template-columns:118px 1fr;gap:8px}
+.hist time{font-family:var(--mono);color:var(--muted)}
+.score-grid{display:grid;grid-template-columns:1fr auto;gap:8px 12px;align-items:center;font-size:13px}
+.score-grid .w{color:var(--muted);font-size:12px}
+.score-grid select{width:70px}
+.total{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--line);padding-top:8px;font-weight:600}
+.total b{font-family:var(--mono);font-size:20px}
+.err{color:var(--bad);font-size:13px}
+@media (prefers-reduced-motion:no-preference){.panel{animation:slide .18s ease-out}@keyframes slide{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}}
+</style>
+
+<header class="top wrap">
+  <div><h1>Project Intake Portal</h1><div class="sub">SBAR intake → business case → governance → portfolio roadmap</div></div>
+  <nav id="nav">
+    <a href="#board">Board</a>
+    <a href="#roadmap">Roadmap</a>
+    <a href="#new">New request</a>
+  </nav>
+  <div class="role"><span class="lbl">Viewing as</span>
+    <select id="role" aria-label="Role">
+      <option value="bl">Business Leader</option>
+      <option value="epmo">EPMO (Portfolio Manager)</option>
+      <option value="sbar">SBAR Committee</option>
+      <option value="pm">Project Manager</option>
+      <option value="gov">Project Governance</option>
+    </select>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="notice" hidden class="notice"></div>
+  <section id="view-board" hidden>
+    <section class="queue" style="margin-bottom:20px">
+      <header><h2 id="qtitle">Your queue</h2><span class="hint" id="qhint"></span></header>
+      <div class="qlist" id="qlist"></div>
+    </section>
+    <div class="board-wrap"><div class="board" id="board"></div></div>
+    <div class="closed" id="closed" style="margin-top:10px"></div>
+  </section>
+
+  <section id="view-roadmap" hidden class="rm">
+    <h2>Project portfolio &amp; roadmap</h2>
+    <div class="weights" id="weights"></div>
+    <div class="tbl"><table id="rmtable"></table></div>
+  </section>
+
+  <section id="view-new" hidden class="queue">
+    <header><h2>New project request (SBAR)</h2><span class="hint">Submitted by the Business Leader; routed to EPMO for a completeness review.</span></header>
+    <form class="form" id="newform">
+      <div class="row2">
+        <label>Project title<input id="f-title" required maxlength="120" placeholder="e.g. Donor CRM migration"></label>
+        <label>Requesting business leader<input id="f-req" required maxlength="80"></label>
+      </div>
+      <div class="row2">
+        <label>Department<input id="f-dept" maxlength="80"></label>
+        <label>Needed by<input id="f-need" type="date"></label>
+      </div>
+      <label>Situation — what is happening now?<textarea id="f-s" required></textarea></label>
+      <label>Background — context, history, prior attempts<textarea id="f-b" required></textarea></label>
+      <label>Assessment — root cause, impact, options considered<textarea id="f-a" required></textarea></label>
+      <label>Recommendation — what you are asking for<textarea id="f-r" required></textarea></label>
+      <div class="err" id="newerr" hidden></div>
+      <div class="btns"><button class="btn p" type="submit">Submit SBAR to EPMO</button></div>
+    </form>
+  </section>
+</main>
+
+<div id="panelroot"></div>
+
+<script>
+(function(){
+"use strict";
+// ---------- Process definition (mirrors the swimlane diagram) ----------
+const STAGES = {
+  epmo_review:   {lane:"EPMO (Portfolio Manager)", name:"Review SBAR", q:"Is the SBAR complete?", role:"epmo", order:1},
+  returned:      {lane:"Business Leader", name:"Update SBAR", q:"EPMO sent it back for more detail", role:"bl", order:0},
+  committee:     {lane:"SBAR Committee", name:"Review SBAR", q:"Is a project required?", role:"sbar", order:2},
+  business_case: {lane:"Project Manager", name:"Document business case", q:"SMART goals, risks, assumptions, cost, proforma", role:"pm", order:3},
+  governance:    {lane:"Project Governance", name:"Review SBAR & business case", q:"Approved? Then prioritize", role:"gov", order:4},
+  portfolio:     {lane:"Portfolio", name:"In portfolio", q:"Prioritized on the published roadmap", role:null, order:5},
+  servicenow:    {lane:"Closed", name:"ServiceNow request", q:"No project required; business leader informed", role:null, order:6, closed:true},
+  declined:      {lane:"Closed", name:"Not approved", q:"Governance declined", role:null, order:7, closed:true}
+};
+const BOARD_ORDER = ["returned","epmo_review","committee","business_case","governance","portfolio"];
+const ROLE_NAME = {bl:"Business Leader",epmo:"EPMO (Portfolio Manager)",sbar:"SBAR Committee",pm:"Project Manager",gov:"Project Governance"};
+const CRITERIA = [
+  {k:"align", label:"Strategic alignment", w:.30, inv:false},
+  {k:"value", label:"Business value / benefit", w:.25, inv:false},
+  {k:"urgency", label:"Urgency / time sensitivity", w:.20, inv:false},
+  {k:"effort", label:"Effort & cost (5 = largest)", w:.15, inv:true},
+  {k:"risk", label:"Delivery risk (5 = riskiest)", w:.10, inv:true}
+];
+function score(s){ if(!s) return null; let t=0; for(const c of CRITERIA){ const v=Number(s[c.k]||3); t+= c.w * (c.inv ? 6-v : v); } return Math.round((t-1)/4*100); }
+
+// ---------- State & storage ----------
+let db=null, items={}, role="bl", mode="loading";
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt=ts=>{ try{ return new Date(ts).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"2-digit"}); }catch(e){ return ""; } };
+function ls(k,v){ try{ if(v===undefined) return localStorage.getItem(k); localStorage.setItem(k,v);}catch(e){ return null; } }
+try{ role = ls("pip.role") || "bl"; }catch(e){}
+$("#role").value=role;
+
+function notice(msg,ok){ const n=$("#notice"); n.hidden=!msg; n.textContent=msg||""; n.classList.toggle("ok",!!ok); }
+
+// Local fallback when the shared store is unavailable
+function localLoad(){ try{ items=JSON.parse(ls("pip.items")||"{}")||{}; }catch(e){ items={}; } }
+function localSave(){ ls("pip.items",JSON.stringify(items)); }
+
+function readSnap(snap){
+  const out={};
+  const push=(id,d)=>{ if(id&&d&&typeof d==="object") out[id]={...d,id}; };
+  if(!snap) return out;
+  if(Array.isArray(snap.docs)){ for(const d of snap.docs){ const data=typeof d.data==="function"?d.data():(d.data??d); push(d.id||data.id,data);} }
+  else if(Array.isArray(snap)){ for(const d of snap){ const data=typeof d.data==="function"?d.data():(d.data??d); push(d.id||data.id,data);} }
+  else if(typeof snap==="object"){ for(const [k,v] of Object.entries(snap)){ if(v&&typeof v==="object") push(v.id||k,v); } }
+  return out;
+}
+
+async function save(rec){
+  rec.updatedAt=Date.now();
+  items[rec.id]=rec;
+  if(db){
+    try{ await db.collection("requests").doc(rec.id).set(rec); }
+    catch(e){ notice("Could not save: "+(e&&e.message||e)+". You may not have write access to this portal."); throw e; }
+  } else { localSave(); }
+  render();
+}
+
+async function init(){
+  let timer=setTimeout(()=>{ if(mode==="loading"){ localLoad(); mode="local"; notice("Shared store is not reachable from this view; working from this browser only."); render(); } },10000);
+  try{
+    db = window.claude && window.claude.use ? await window.claude.use("db") : null;
+  }catch(e){ db=null; }
+  if(!db){ clearTimeout(timer); localLoad(); mode="local"; notice("You are not signed in to the shared portal, so requests you create here stay in this browser only."); render(); return; }
+  try{
+    db.collection("requests").onSnapshot(snap=>{ clearTimeout(timer); items=readSnap(snap); mode="shared"; notice(""); render(); },
+      err=>{ clearTimeout(timer); notice("Live updates failed: "+(err&&err.message||err)); mode="shared"; render(); });
+  }catch(e){
+    try{ const snap=await db.collection("requests").get(); items=readSnap(snap); }catch(e2){}
+    clearTimeout(timer); mode="shared"; render();
+  }
+}
+
+// ---------- Routing ----------
+function route(){
+  let h=(location.hash||"#board").replace("#","");
+  if(!["board","roadmap","new"].includes(h)) h="board";
+  for(const v of ["board","roadmap","new"]) $("#view-"+v).hidden = v!==h;
+  document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.getAttribute("href")==="#"+h));
+}
+window.addEventListener("hashchange",route);
+$("#role").addEventListener("change",e=>{ role=e.target.value; ls("pip.role",role); render(); });
+
+// ---------- Rendering ----------
+function render(){
+  route();
+  renderQueue(); renderBoard(); renderRoadmap();
+  if(openId && items[openId]) renderPanel(items[openId]);
+}
+function list(){ return Object.values(items).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0)); }
+function cardHTML(r){
+  const st=STAGES[r.stage]||{};
+  let pill="";
+  if(r.stage==="returned") pill='<span class="pill ret">Returned</span>';
+  if(r.stage==="servicenow") pill='<span class="pill sn">ServiceNow</span>';
+  if(r.stage==="declined") pill='<span class="pill dec">Declined</span>';
+  if(r.stage==="portfolio") pill='<span class="pill sc">'+(score(r.scores)??"—")+' pts</span>';
+  return '<button class="card" data-id="'+esc(r.id)+'"><span class="id">'+esc(r.id)+'</span><span class="t">'+esc(r.title)+'</span><span class="m"><span>'+esc(r.requester||"")+'</span>'+pill+'</span></button>';
+}
+function renderQueue(){
+  const mine=list().filter(r=>STAGES[r.stage]&&STAGES[r.stage].role===role);
+  $("#qtitle").textContent="Your queue — "+ROLE_NAME[role];
+  const hints={bl:"Requests EPMO sent back to you for more detail. Create new requests from the New request tab.",
+    epmo:"Check each SBAR for completeness. Pass complete ones to the SBAR Committee; send gaps back to the business leader.",
+    sbar:"Decide whether a project is required. If not, log a ServiceNow request and inform the business leader. If so, name the business case team.",
+    pm:"Pull the team together and document the business case: SMART goals, risks, assumptions, cost, proforma if needed.",
+    gov:"Review the SBAR and business case together. Approve and score to add to the portfolio, or decline."};
+  $("#qhint").textContent=hints[role];
+  $("#qlist").innerHTML = mine.length ? mine.map(r=>'<button class="qitem" data-id="'+esc(r.id)+'"><span class="id">'+esc(r.id)+'</span><span class="t">'+esc(r.title)+'<small>'+esc(STAGES[r.stage].name)+' · '+esc(r.requester||"")+(r.department?" · "+esc(r.department):"")+' · updated '+fmt(r.updatedAt)+'</small></span><span class="pill ok">Act</span></button>').join("") : '<div class="empty">Nothing waiting on this role right now.</div>';
+}
+function renderBoard(){
+  const all=list();
+  $("#board").innerHTML = BOARD_ORDER.map(k=>{ const st=STAGES[k]; const rs=all.filter(r=>r.stage===k);
+    return '<div class="lane"><div class="lh"><span class="who">'+esc(st.lane)+'</span><span class="nm">'+esc(st.name)+'<span class="cnt">'+rs.length+'</span></span><span class="q">'+esc(st.q)+'</span></div><div class="cards">'+(rs.map(cardHTML).join("")||'<div class="empty">—</div>')+'</div></div>'; }).join("");
+  $("#closed").innerHTML = ["servicenow","declined"].map(k=>{ const st=STAGES[k]; const rs=all.filter(r=>r.stage===k);
+    return '<div class="lane"><div class="lh"><span class="who">Closed</span><span class="nm">'+esc(st.name)+'<span class="cnt">'+rs.length+'</span></span><span class="q">'+esc(st.q)+'</span></div><div class="cards">'+(rs.map(cardHTML).join("")||'<div class="empty">—</div>')+'</div></div>'; }).join("");
+}
+function renderRoadmap(){
+  $("#weights").innerHTML='Weighted score: '+CRITERIA.map(c=>esc(c.label.replace(/ \(.*\)/,""))+' <b>'+Math.round(c.w*100)+'%</b>').join(" · ")+' — each scored 1–5 by Governance; effort and risk count inversely.';
+  const rs=list().filter(r=>r.stage==="portfolio").map(r=>({...r,_s:score(r.scores)??0})).sort((a,b)=>b._s-a._s);
+  if(!rs.length){ $("#rmtable").innerHTML='<tbody><tr><td class="empty">No approved projects yet. Projects appear here once Governance approves and scores them.</td></tr></tbody>'; return; }
+  $("#rmtable").innerHTML='<thead><tr><th>Rank</th><th>Project</th><th>Sponsor</th><th>Target quarter</th><th class="n">Cost</th><th>Score</th><th class="n">Pts</th></tr></thead><tbody>'+
+    rs.map((r,i)=>'<tr data-id="'+esc(r.id)+'" style="cursor:pointer"><td><span class="rank">'+(i+1)+'</span></td><td><strong>'+esc(r.title)+'</strong><br><span class="id" style="font-family:var(--mono);font-size:11px;color:var(--muted)">'+esc(r.id)+'</span></td><td>'+esc(r.requester||"")+(r.department?'<br><span style="color:var(--muted)">'+esc(r.department)+'</span>':"")+'</td><td>'+esc(r.targetQuarter||"TBD")+'</td><td class="n">'+esc(r.businessCase&&r.businessCase.cost||"—")+'</td><td><div class="bar"><i style="width:'+r._s+'%"></i></div></td><td class="n">'+r._s+'</td></tr>').join("")+'</tbody>';
+}
+
+// ---------- Detail panel ----------
+let openId=null;
+function hist(r,by,what){ (r.history=r.history||[]).push({at:Date.now(),by,what}); }
+function fieldVal(id){ const el=document.getElementById(id); return el?el.value.trim():""; }
+function renderPanel(r){
+  const st=STAGES[r.stage]||{name:r.stage};
+  const sb=r.sbar||{}, bc=r.businessCase||{};
+  let action="";
+  if(st.role===role){
+    if(r.stage==="epmo_review") action=`<div class="act"><h3>EPMO review — is the SBAR complete?</h3>
+      <label class="form" style="display:grid;gap:4px"><span style="font-size:12px;font-weight:600;color:var(--muted)">Review notes (required if sending back)</span><textarea id="a-notes" placeholder="What is missing or unclear?"></textarea></label>
+      <div class="btns"><button class="btn o" data-act="epmo_yes">Yes — send to SBAR Committee</button><button class="btn" data-act="epmo_no">No — return to business leader</button></div></div>`;
+    if(r.stage==="returned") action=`<div class="act"><h3>Update SBAR and resubmit</h3><p style="margin:0;font-size:13px">EPMO notes: <em>${esc(r.epmoNotes||"(none)")}</em></p>
+      <div class="form"><label>Situation<textarea id="a-s">${esc(sb.situation)}</textarea></label><label>Background<textarea id="a-b">${esc(sb.background)}</textarea></label><label>Assessment<textarea id="a-a">${esc(sb.assessment)}</textarea></label><label>Recommendation<textarea id="a-r">${esc(sb.recommendation)}</textarea></label></div>
+      <div class="btns"><button class="btn p" data-act="resubmit">Resubmit to EPMO</button></div></div>`;
+    if(r.stage==="committee") action=`<div class="act"><h3>SBAR Committee — is a project required?</h3>
+      <div class="form"><label>Business case team (SMEs and key business leaders)<input id="a-team" placeholder="Names or roles, comma separated" value="${esc(r.bcTeam||"")}"></label><label>Committee notes<textarea id="a-notes"></textarea></label></div>
+      <div class="btns"><button class="btn o" data-act="cmt_yes">Yes — identify team &amp; hand to PM</button><button class="btn" data-act="cmt_no">No — create ServiceNow request</button></div></div>`;
+    if(r.stage==="business_case") action=`<div class="act"><h3>Document the business case</h3><p style="margin:0;font-size:13px;color:var(--muted)">Team: ${esc(r.bcTeam||"not named")}</p>
+      <div class="form"><label>SMART goals<textarea id="a-goals">${esc(bc.goals)}</textarea></label><label>Risks<textarea id="a-risks">${esc(bc.risks)}</textarea></label><label>Assumptions<textarea id="a-assume">${esc(bc.assumptions)}</textarea></label>
+      <div class="row2"><label>Estimated cost<input id="a-cost" placeholder="e.g. $120,000" value="${esc(bc.cost)}"></label><label>Target quarter<input id="a-q" placeholder="e.g. Q2 FY27" value="${esc(r.targetQuarter||"")}"></label></div>
+      <label>Proforma (if necessary)<textarea id="a-pro" placeholder="Financial projection, payback, or 'not required'">${esc(bc.proforma)}</textarea></label></div>
+      <div class="btns"><button class="btn" data-act="bc_save">Save draft</button><button class="btn p" data-act="bc_submit">Submit to Governance</button></div></div>`;
+    if(r.stage==="governance"){ const s=r.scores||{};
+      action=`<div class="act"><h3>Governance — approve and prioritize</h3>
+      <div class="score-grid">${CRITERIA.map(c=>`<span>${esc(c.label)}<br><span class="w">weight ${Math.round(c.w*100)}%</span></span><select id="sc-${c.k}" class="scsel">${[1,2,3,4,5].map(v=>`<option value="${v}" ${Number(s[c.k]||3)===v?"selected":""}>${v}</option>`).join("")}</select>`).join("")}</div>
+      <div class="total"><span>Priority score</span><b id="sc-total">${score(s)??score({})}</b></div>
+      <label class="form" style="display:grid;gap:4px"><span style="font-size:12px;font-weight:600;color:var(--muted)">Decision notes</span><textarea id="a-notes"></textarea></label>
+      <div class="btns"><button class="btn o" data-act="gov_yes">Approve — add to portfolio &amp; roadmap</button><button class="btn d" data-act="gov_no">Not approved</button></div></div>`; }
+  } else if(st.role){ action=`<div class="notice" style="font-size:12px">Waiting on <strong>${esc(ROLE_NAME[st.role])}</strong>. Switch role in the top bar to act on it.</div>`; }
+  if(r.stage==="portfolio"&&role==="gov") action+=`<div class="btns" style="margin-top:4px"><button class="btn" data-act="reopen">Reopen for re-scoring</button></div>`;
+
+  const kv=(dt,dd)=>dd?`<dt>${dt}</dt><dd>${esc(dd)}</dd>`:"";
+  $("#panelroot").innerHTML=`<div class="scrim" id="scrim"></div><aside class="panel" role="dialog" aria-labelledby="ptitle">
+    <div class="ph"><div><div class="id">${esc(r.id)} · created ${fmt(r.createdAt)}</div><h2 id="ptitle">${esc(r.title)}</h2></div><button class="x" id="closep" aria-label="Close">×</button></div>
+    <div><span class="stage ${st.closed?"c":""}">${esc(st.lane)} · ${esc(st.name)}</span>${r.stage==="portfolio"?` <span class="pill sc">${score(r.scores)??"—"} pts</span>`:""}</div>
+    ${action}
+    <div class="sec"><h3>Request</h3><dl class="kv">${kv("Business leader",r.requester)}${kv("Department",r.department)}${kv("Needed by",r.neededBy)}${kv("Target quarter",r.targetQuarter)}</dl></div>
+    <div class="sec"><h3>SBAR</h3><dl class="kv">${kv("Situation",sb.situation)}${kv("Background",sb.background)}${kv("Assessment",sb.assessment)}${kv("Recommendation",sb.recommendation)}</dl></div>
+    ${(bc.goals||bc.risks||bc.cost)?`<div class="sec"><h3>Business case</h3><dl class="kv">${kv("Team",r.bcTeam)}${kv("SMART goals",bc.goals)}${kv("Risks",bc.risks)}${kv("Assumptions",bc.assumptions)}${kv("Cost",bc.cost)}${kv("Proforma",bc.proforma)}</dl></div>`:""}
+    ${r.scores?`<div class="sec"><h3>Prioritization</h3><dl class="kv">${CRITERIA.map(c=>kv(c.label.replace(/ \(.*\)/,""),String(r.scores[c.k]||3)+" / 5")).join("")}${kv("Score",String(score(r.scores))+" / 100")}</dl></div>`:""}
+    <div class="sec"><h3>History</h3><div class="hist">${(r.history||[]).slice().reverse().map(h=>`<div><time>${fmt(h.at)}</time><span><strong>${esc(h.by)}</strong> — ${esc(h.what)}</span></div>`).join("")||'<span class="empty">—</span>'}</div></div>
+  </aside>`;
+  $("#scrim").onclick=closePanel; $("#closep").onclick=closePanel;
+  document.querySelectorAll(".scsel").forEach(s=>s.addEventListener("change",()=>{ const sc={}; CRITERIA.forEach(c=>sc[c.k]=Number($("#sc-"+c.k).value)); $("#sc-total").textContent=score(sc); }));
+  document.querySelectorAll("[data-act]").forEach(b=>b.addEventListener("click",()=>act(r.id,b.dataset.act)));
+}
+function closePanel(){ openId=null; $("#panelroot").innerHTML=""; }
+function openPanel(id){ if(items[id]){ openId=id; renderPanel(items[id]); } }
+document.addEventListener("click",e=>{ const t=e.target.closest("[data-id]"); if(t && !e.target.closest("[data-act]")) openPanel(t.dataset.id); });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&openId) closePanel(); });
+
+async function act(id,a){
+  const r=JSON.parse(JSON.stringify(items[id])); const by=ROLE_NAME[role]; const notes=fieldVal("a-notes");
+  switch(a){
+    case "epmo_yes": r.stage="committee"; hist(r,by,"SBAR complete; forwarded to SBAR Committee"+(notes?": "+notes:"")); break;
+    case "epmo_no": if(!notes){ alertErr("Add review notes so the business leader knows what to update."); return; } r.stage="returned"; r.epmoNotes=notes; hist(r,by,"SBAR incomplete; returned: "+notes); break;
+    case "resubmit": r.sbar={situation:fieldVal("a-s"),background:fieldVal("a-b"),assessment:fieldVal("a-a"),recommendation:fieldVal("a-r")}; r.stage="epmo_review"; hist(r,by,"SBAR updated and resubmitted"); break;
+    case "cmt_yes": { const team=fieldVal("a-team"); if(!team){ alertErr("Name the business case team (SMEs and key business leaders)."); return; } r.bcTeam=team; r.stage="business_case"; hist(r,by,"Project required; business case team: "+team+(notes?". "+notes:"")); break; }
+    case "cmt_no": r.stage="servicenow"; r.closedReason=notes; hist(r,by,"No project required; ServiceNow request created and business leader informed"+(notes?": "+notes:"")); break;
+    case "bc_save": case "bc_submit":
+      r.businessCase={goals:fieldVal("a-goals"),risks:fieldVal("a-risks"),assumptions:fieldVal("a-assume"),cost:fieldVal("a-cost"),proforma:fieldVal("a-pro")}; r.targetQuarter=fieldVal("a-q");
+      if(a==="bc_submit"){ if(!r.businessCase.goals||!r.businessCase.cost){ alertErr("SMART goals and an estimated cost are required before Governance review."); return; } r.stage="governance"; hist(r,by,"Business case submitted to Project Governance"); } else hist(r,by,"Business case draft saved");
+      break;
+    case "gov_yes": { const sc={}; CRITERIA.forEach(c=>sc[c.k]=Number($("#sc-"+c.k).value)); r.scores=sc; r.stage="portfolio"; r.approvedAt=Date.now(); hist(r,by,"Approved; added to portfolio with priority score "+score(sc)+(notes?". "+notes:"")); break; }
+    case "gov_no": r.stage="declined"; r.closedReason=notes; hist(r,by,"Not approved"+(notes?": "+notes:"")); break;
+    case "reopen": r.stage="governance"; hist(r,by,"Reopened for re-scoring"); break;
+    default: return;
+  }
+  try{ await save(r); }catch(e){ return; }
+  if(["servicenow","declined","portfolio"].includes(r.stage)||a==="bc_save") renderPanel(items[id]); else closePanel();
+}
+function alertErr(m){ const act=document.querySelector(".act"); if(!act) return; let e=act.querySelector(".err"); if(!e){ e=document.createElement("div"); e.className="err"; act.appendChild(e);} e.textContent=m; }
+
+// ---------- New request ----------
+$("#newform").addEventListener("submit",async e=>{
+  e.preventDefault(); const err=$("#newerr"); err.hidden=true;
+  const id="PR-"+Date.now().toString(36).toUpperCase().slice(-6);
+  const r={id,title:fieldVal("f-title"),requester:fieldVal("f-req"),department:fieldVal("f-dept"),neededBy:fieldVal("f-need"),
+    sbar:{situation:fieldVal("f-s"),background:fieldVal("f-b"),assessment:fieldVal("f-a"),recommendation:fieldVal("f-r")},
+    stage:"epmo_review",createdAt:Date.now(),history:[]};
+  hist(r,"Business Leader","Draft SBAR submitted to EPMO");
+  try{ await save(r); }catch(ex){ err.hidden=false; err.textContent="Could not submit. "+(ex&&ex.message||""); return; }
+  e.target.reset(); location.hash="#board"; openPanel(id);
+});
+
+render(); init();
+})();
+</script>
